@@ -9,7 +9,9 @@ services:
     image: postgres
     restart: always
     environment:
-      POSTGRES_PASSWORD: example
+      POSTGRES_USER: root
+      POSTGRES_PASSWORD: pass
+      POSTGRES_DB: root
     healthcheck:
       test: ["CMD-SHELL", "pg_isready"]
       interval: 1s

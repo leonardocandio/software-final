@@ -1,10 +1,6 @@
-fastapi[standard]
-uvicorn
-sqlmodel
-typer
-dynaconf
-jinja2
-python-jose[cryptography]
-passlib[bcrypt]
-python-multipart
-psycopg2-binary
+fastapi>=0.68.0
+uvicorn>=0.15.0
+sqlalchemy>=1.4.0
+psycopg2-binary>=2.9.0
+pydantic>=1.8.0
+python-dateutil>=2.8.2
