@@ -1,10 +1,14 @@
+import logging
 from fastapi import FastAPI, HTTPException, Depends
 from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, ForeignKey, Boolean
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session, relationship
-from datetime import datetime
+from datetime import date, datetime
 from typing import List, Optional
 import os
+
+# Create logs directory if it doesn't exist
+os.makedirs("/app/logs", exist_ok=True)
 
 # Database connection
 SQLALCHEMY_DATABASE_URL = "postgresql://root:pass@db/db"
@@ -98,8 +102,17 @@ async def reserve_ticket(
     user_id: int,
     db: Session = Depends(get_db)
 ):
+    today = date.today().strftime("%d_%m_%Y")
+    log_filename = f"/app/logs/log_{today}.log"
+    logging.basicConfig(
+        filename=log_filename,
+        level=logging.INFO,
+        format="%(asctime)s - %(levelname)s - %(message)s",
+    )   
+
     concert = db.query(Concert).filter(Concert.id == concert_id).first()
     if not concert:
+        logging.error(f"Error en ejecucion")
         raise HTTPException(status_code=404, detail="Concert not found")
     
     if concert.available_tickets <= 0:
@@ -119,6 +132,7 @@ async def reserve_ticket(
     db.add(ticket)
     db.commit()
     db.refresh(ticket)
+    logging.info(f"Exito en ejecucion")
     
     return {
         "message": "Ticket reserved successfully",
