@@ -56,7 +56,7 @@ if __name__ == "__main__":
     end_date = "03_12_2024"
     
     # Parse logs and count successes and failures
-    log_counts = parse_logs(start_date, end_date, log_dir=".")
+    log_counts = parse_logs(start_date, end_date, log_dir="../logs")
     
     # Print results
     print(f"Successes: {log_counts['successes']}")
