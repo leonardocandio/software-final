@@ -46,10 +46,14 @@ jobs:
     # 6. Run integration tests
     - name: Run integration tests
       run: |
-        # Install additional testing dependencies
+        # Install test dependencies locally
         pip install pytest requests pytest-cov
-        # Run integration tests with coverage
-        pytest tests/integration/ --disable-warnings --cov=server --cov-report=term-missing
+        
+        # Start the server with coverage
+        docker compose exec -T server bash -c "coverage run -m pytest /app/tests/integration --disable-warnings"
+        
+        # Generate coverage report
+        docker compose exec -T server bash -c "coverage report --fail-under=80"
 
     # 7. Clean up
     - name: Clean up

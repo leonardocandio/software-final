@@ -7,6 +7,8 @@ services:
       - "8000:8000"
     depends_on:
       - db
+    volumes:
+      - ./tests:/app/tests
   db:
     image: postgres:latest
     container_name: postgres_server

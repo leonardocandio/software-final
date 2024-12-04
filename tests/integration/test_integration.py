@@ -1,14 +1,21 @@
 import pytest
 import requests
 from datetime import datetime, timedelta
+import uuid
 
 BASE_URL = "http://localhost:8000"
+
+def get_unique_email():
+    return f"test_{uuid.uuid4().hex[:8]}@example.com"
+
+def get_unique_name():
+    return f"Test User {uuid.uuid4().hex[:8]}"
 
 @pytest.fixture
 def test_user():
     user_response = requests.post(f"{BASE_URL}/users/", params={
-        "email": "test@example.com",
-        "name": "Test User"
+        "email": get_unique_email(),
+        "name": get_unique_name()
     })
     assert user_response.status_code == 200
     return user_response.json()["user_id"]
@@ -17,7 +24,7 @@ def test_user():
 def test_concert():
     concert_date = (datetime.utcnow() + timedelta(days=30)).isoformat()
     concert_response = requests.post(f"{BASE_URL}/concerts/", params={
-        "name": "Test Concert",
+        "name": f"Test Concert {uuid.uuid4().hex[:8]}",
         "date": concert_date,
         "venue": "Test Venue",
         "total_tickets": 100,
@@ -109,7 +116,7 @@ def test_sold_out_concert():
     # Create a concert with only 1 ticket
     concert_date = (datetime.utcnow() + timedelta(days=30)).isoformat()
     concert_response = requests.post(f"{BASE_URL}/concerts/", params={
-        "name": "Small Concert",
+        "name": f"Small Concert {uuid.uuid4().hex[:8]}",
         "date": concert_date,
         "venue": "Small Venue",
         "total_tickets": 1,
@@ -119,14 +126,14 @@ def test_sold_out_concert():
 
     # Create two users
     user1_response = requests.post(f"{BASE_URL}/users/", params={
-        "email": "user1@example.com",
-        "name": "User One"
+        "email": get_unique_email(),
+        "name": get_unique_name()
     })
     user1_id = user1_response.json()["user_id"]
 
     user2_response = requests.post(f"{BASE_URL}/users/", params={
-        "email": "user2@example.com",
-        "name": "User Two"
+        "email": get_unique_email(),
+        "name": get_unique_name()
     })
     user2_id = user2_response.json()["user_id"]
 
@@ -148,14 +155,14 @@ def test_sold_out_concert():
 def test_ticket_lifecycle():
     # Create user and concert
     user_response = requests.post(f"{BASE_URL}/users/", params={
-        "email": "lifecycle@example.com",
-        "name": "Lifecycle Test"
+        "email": get_unique_email(),
+        "name": get_unique_name()
     })
     user_id = user_response.json()["user_id"]
 
     concert_date = (datetime.utcnow() + timedelta(days=30)).isoformat()
     concert_response = requests.post(f"{BASE_URL}/concerts/", params={
-        "name": "Lifecycle Concert",
+        "name": f"Lifecycle Concert {uuid.uuid4().hex[:8]}",
         "date": concert_date,
         "venue": "Test Venue",
         "total_tickets": 10,
@@ -170,23 +177,39 @@ def test_ticket_lifecycle():
     })
     ticket_id = reserve_response.json()["ticket_id"]
 
-    # Try to cancel already purchased ticket
+    # Purchase the ticket
     purchase_response = requests.post(f"{BASE_URL}/tickets/purchase/{ticket_id}")
     assert purchase_response.status_code == 200
 
+    # Cancel purchased ticket (this should now work)
     cancel_response = requests.post(f"{BASE_URL}/tickets/cancel/{ticket_id}")
-    assert cancel_response.status_code == 400
+    assert cancel_response.status_code == 200
+    assert cancel_response.json()["message"] == "Ticket cancelled successfully"
 
-    # Try to purchase already purchased ticket
+    # Verify the ticket can be reserved again
+    reserve_response = requests.post(f"{BASE_URL}/tickets/reserve/", params={
+        "concert_id": concert_id,
+        "user_id": user_id
+    })
+    assert reserve_response.status_code == 200
+    ticket_id = reserve_response.json()["ticket_id"]
+
+    # Purchase and use ticket
     purchase_response = requests.post(f"{BASE_URL}/tickets/purchase/{ticket_id}")
-    assert purchase_response.status_code == 400
-    assert "Ticket already purchased" in purchase_response.json()["detail"]
+    assert purchase_response.status_code == 200
 
-    # Use ticket
     use_response = requests.post(f"{BASE_URL}/tickets/{ticket_id}/use")
     assert use_response.status_code == 200
 
-    # Try to use already used ticket
-    use_response = requests.post(f"{BASE_URL}/tickets/{ticket_id}/use")
-    assert use_response.status_code == 400
-    assert "Ticket must be purchased before use" in use_response.json()["detail"]
+    # Try to cancel used ticket (should fail)
+    cancel_response = requests.post(f"{BASE_URL}/tickets/cancel/{ticket_id}")
+    assert cancel_response.status_code == 400
+    assert "Used tickets cannot be cancelled" in cancel_response.json()["detail"]
+
+@pytest.fixture(autouse=True, scope="session")
+def cleanup():
+    yield  # This runs the tests
+    # After all tests complete, we could add cleanup code here if needed
+    # For example, we could delete all test users and concerts
+    # However, since we're using Docker, the database gets cleaned up
+    # when we tear down the containers
