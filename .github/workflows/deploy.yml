@@ -17,18 +17,28 @@ jobs:
     - name: Check out code
       uses: actions/checkout@v3
 
-    # 2. Set up Docker Compose
-    - name: Set up Docker Compose
+    # 2. Set up Python
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: "3.10"
+
+    # 3. Set up Docker
+    - name: Set up Docker
       uses: docker/setup-buildx-action@v2
 
-    # 3. Start services with Docker Compose
+    # 4. Install Docker Compose
+    - name: Install Docker Compose
+      uses: ndeloof/install-compose-action@v0.0.1
+
+    # 5. Start services with Docker Compose
     - name: Start services
       run: |
-        docker-compose up -d
+        docker compose up -d
         # Wait for services to be ready
         sleep 10
 
-    # 4. Run integration tests
+    # 6. Run integration tests
     - name: Run integration tests
       run: |
         # Install additional testing dependencies
@@ -36,8 +46,8 @@ jobs:
         # Run integration tests with coverage
         pytest tests/integration/ --disable-warnings --cov=server --cov-report=term-missing
 
-    # 5. Clean up
+    # 7. Clean up
     - name: Clean up
       run: |
-        docker-compose down
+        docker compose down
       if: always()  # This ensures cleanup happens even if tests fail
