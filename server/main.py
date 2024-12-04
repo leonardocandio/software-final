@@ -7,7 +7,7 @@ from typing import List, Optional
 import os
 
 # Database connection
-SQLALCHEMY_DATABASE_URL = "postgresql://root:pass@db/root"
+SQLALCHEMY_DATABASE_URL = "postgresql://root:pass@db/db"
 engine = create_engine(SQLALCHEMY_DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
@@ -32,7 +32,7 @@ class Ticket(Base):
     concert_id = Column(Integer, ForeignKey("concerts.id"))
     user_email = Column(String)
     purchase_date = Column(DateTime, default=datetime.utcnow)
-    is_cancelled = Column(Boolean, default=False)
+    status = Column(String, default="available")
     concert = relationship("Concert", back_populates="tickets")
 
 # Create tables
@@ -86,7 +86,8 @@ async def purchase_ticket(
     
     ticket = Ticket(
         concert_id=concert_id,
-        user_email=user_email
+        user_email=user_email,
+        status="reserved"
     )
     concert.available_tickets -= 1
     
@@ -108,12 +109,13 @@ async def cancel_ticket(
     if not ticket:
         raise HTTPException(status_code=404, detail="Ticket not found")
     
-    if ticket.is_cancelled:
-        raise HTTPException(status_code=400, detail="Ticket already cancelled")
+    if ticket.status == "available":
+        raise HTTPException(status_code=400, detail="Ticket is already available")
     
     concert = db.query(Concert).filter(Concert.id == ticket.concert_id).first()
     concert.available_tickets += 1
-    ticket.is_cancelled = True
+    ticket.status = "available"
+    ticket.user_email = None
     
     db.commit()
     
