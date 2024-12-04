@@ -200,3 +200,7 @@ async def use_ticket(
     
     return {"message": "Ticket marked as used"}
 
+@app.get("/health")
+async def health_check():
+    return {"status": "healthy"}
+

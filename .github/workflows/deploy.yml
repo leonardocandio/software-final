@@ -35,8 +35,13 @@ jobs:
     - name: Start services
       run: |
         docker compose up -d
-        # Wait for services to be ready
-        sleep 10
+        # Install wait-for-it script
+        curl -o wait-for-it.sh https://raw.githubusercontent.com/vishnubob/wait-for-it/master/wait-for-it.sh
+        chmod +x wait-for-it.sh
+        # Wait for PostgreSQL to be ready
+        ./wait-for-it.sh localhost:5432 -t 60
+        # Wait for FastAPI server to be ready
+        ./wait-for-it.sh localhost:8000 -t 60
 
     # 6. Run integration tests
     - name: Run integration tests
