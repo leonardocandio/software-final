@@ -25,15 +25,24 @@ class Concert(Base):
     price = Column(Float)
     tickets = relationship("Ticket", back_populates="concert")
 
+class User(Base):
+    __tablename__ = "users"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String, unique=True, index=True)
+    name = Column(String)
+    tickets = relationship("Ticket", back_populates="user")
+
 class Ticket(Base):
     __tablename__ = "tickets"
     
     id = Column(Integer, primary_key=True, index=True)
     concert_id = Column(Integer, ForeignKey("concerts.id"))
-    user_email = Column(String)
+    user_id = Column(Integer, ForeignKey("users.id"))
     purchase_date = Column(DateTime, default=datetime.utcnow)
     status = Column(String, default="available")
     concert = relationship("Concert", back_populates="tickets")
+    user = relationship("User", back_populates="tickets")
 
 # Create tables
 Base.metadata.create_all(bind=engine)
@@ -71,10 +80,22 @@ async def create_concert(
     db.refresh(concert)
     return {"message": "Concert created successfully", "concert_id": concert.id}
 
-@app.post("/tickets/purchase/", response_model=dict)
-async def purchase_ticket(
+@app.post("/users/", response_model=dict)
+async def create_user(
+    email: str,
+    name: str,
+    db: Session = Depends(get_db)
+):
+    user = User(email=email, name=name)
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return {"message": "User created successfully", "user_id": user.id}
+
+@app.post("/tickets/reserve/", response_model=dict)
+async def reserve_ticket(
     concert_id: int,
-    user_email: str,
+    user_id: int,
     db: Session = Depends(get_db)
 ):
     concert = db.query(Concert).filter(Concert.id == concert_id).first()
@@ -84,9 +105,13 @@ async def purchase_ticket(
     if concert.available_tickets <= 0:
         raise HTTPException(status_code=400, detail="No tickets available")
     
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
     ticket = Ticket(
         concert_id=concert_id,
-        user_email=user_email,
+        user_id=user_id,
         status="reserved"
     )
     concert.available_tickets -= 1
@@ -96,9 +121,28 @@ async def purchase_ticket(
     db.refresh(ticket)
     
     return {
-        "message": "Ticket purchased successfully",
+        "message": "Ticket reserved successfully",
         "ticket_id": ticket.id
     }
+
+@app.post("/tickets/purchase/{ticket_id}", response_model=dict)
+async def purchase_ticket(
+    ticket_id: int,
+    db: Session = Depends(get_db)
+):
+    ticket = db.query(Ticket).filter(Ticket.id == ticket_id).first()
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Ticket not found")
+    
+    if ticket.status == "purchased":
+        raise HTTPException(status_code=400, detail="Ticket already purchased")
+    
+    ticket.status = "purchased"
+    ticket.purchase_date = datetime.utcnow()
+    
+    db.commit()
+    
+    return {"message": "Ticket purchased successfully"}
 
 @app.post("/tickets/cancel/{ticket_id}", response_model=dict)
 async def cancel_ticket(
@@ -112,10 +156,13 @@ async def cancel_ticket(
     if ticket.status == "available":
         raise HTTPException(status_code=400, detail="Ticket is already available")
     
+    if ticket.status == "used":
+        raise HTTPException(status_code=400, detail="Used tickets cannot be cancelled")
+    
     concert = db.query(Concert).filter(Concert.id == ticket.concert_id).first()
     concert.available_tickets += 1
     ticket.status = "available"
-    ticket.user_email = None
+    ticket.user_id = None
     
     db.commit()
     
@@ -135,4 +182,21 @@ async def list_concerts(db: Session = Depends(get_db)):
         }
         for concert in concerts
     ]
+
+@app.post("/tickets/{ticket_id}/use", response_model=dict)
+async def use_ticket(
+    ticket_id: int,
+    db: Session = Depends(get_db)
+):
+    ticket = db.query(Ticket).filter(Ticket.id == ticket_id).first()
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Ticket not found")
+    
+    if ticket.status != "purchased":
+        raise HTTPException(status_code=400, detail="Ticket must be purchased before use")
+    
+    ticket.status = "used"
+    db.commit()
+    
+    return {"message": "Ticket marked as used"}
 
